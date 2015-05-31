@@ -1075,33 +1075,41 @@ static int pidff_find_effects(struct pidff_device *pidff,
 static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 {
 	int envelope_ok = 0;
+	int error = 0;
 
 	if (PIDFF_FIND_FIELDS(set_effect, PID_SET_EFFECT, 1)) {
 		hid_err(pidff->hid, "unknown set_effect report layout\n");
-		return -ENODEV;
+//		return -ENODEV;
+		error = -ENODEV;
 	}
 
 	PIDFF_FIND_FIELDS(block_load, PID_BLOCK_LOAD, 0);
 	if (!pidff->block_load[PID_EFFECT_BLOCK_INDEX].value) {
 		hid_err(pidff->hid, "unknown pid_block_load report layout\n");
-		return -ENODEV;
+//		return -ENODEV;
+		error = -ENODEV;
 	}
 
 	if (PIDFF_FIND_FIELDS(effect_operation, PID_EFFECT_OPERATION, 1)) {
 		hid_err(pidff->hid, "unknown effect_operation report layout\n");
-		return -ENODEV;
+//		return -ENODEV;
+		error = -ENODEV;
 	}
 
 	if (PIDFF_FIND_FIELDS(block_free, PID_BLOCK_FREE, 1)) {
 		hid_err(pidff->hid, "unknown pid_block_free report layout\n");
-		return -ENODEV;
+//		return -ENODEV;
+		error = -ENODEV;
 	}
 
 	if (!PIDFF_FIND_FIELDS(set_envelope, PID_SET_ENVELOPE, 1))
 		envelope_ok = 1;
 
 	if (pidff_find_special_fields(pidff) || pidff_find_effects(pidff, dev))
-		return -ENODEV;
+	{
+//		return -ENODEV;
+	    error = -ENODEV;
+	}
 
 	if (!envelope_ok) {
 		if (test_and_clear_bit(FF_CONSTANT, dev->ffbit))
@@ -1151,7 +1159,8 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 	if (!PIDFF_FIND_FIELDS(device_gain, PID_DEVICE_GAIN, 1))
 		set_bit(FF_GAIN, dev->ffbit);
 
-	return 0;
+//	return 0;
+	return error;
 }
 
 /*
