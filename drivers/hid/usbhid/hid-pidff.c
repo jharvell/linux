@@ -781,6 +781,11 @@ static int pidff_find_fields(struct pidff_usage *usage, const u8 *table,
 				continue;
 			}
 			for (j = 0; j < report->field[i]->maxusage; j++) {
+			    if (table[k] == 0x56 && report->field[i]->usage[j].hid == 0x10056)
+			    {
+			        pr_warn("Iris Dynamics yoke hack changing Usage Page of 0x56 from 0x1 to 0xf: %d->%d", i, j);
+			        report->field[i]->usage[j].hid = 0xf0056;
+			    }
 				if (report->field[i]->usage[j].hid ==
 				    (HID_UP_PID | table[k])) {
 					pr_debug("found %d at %d->%d\n",
