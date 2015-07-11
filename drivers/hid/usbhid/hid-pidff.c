@@ -463,6 +463,7 @@ static int pidff_needs_set_ramp(struct ff_effect *effect, struct ff_effect *old)
 static int pidff_request_effect_upload(struct pidff_device *pidff, int efnum)
 {
 	int j;
+	const int Block_Load_Retries = 5;
 
 	pidff->create_new_effect_type->value[0] = efnum;
 	hid_hw_request(pidff->hid, pidff->reports[PID_CREATE_NEW_EFFECT],
@@ -473,7 +474,7 @@ static int pidff_request_effect_upload(struct pidff_device *pidff, int efnum)
 	pidff->block_load_status->value[0] = 0;
 	hid_hw_wait(pidff->hid);
 
-	for (j = 0; j < 60; j++) {
+	for (j = 0; j < Block_Load_Retries; j++) {
 		hid_dbg(pidff->hid, "pid_block_load requested\n");
 		hid_hw_request(pidff->hid, pidff->reports[PID_BLOCK_LOAD],
 				HID_REQ_GET_REPORT);
@@ -493,7 +494,7 @@ static int pidff_request_effect_upload(struct pidff_device *pidff, int efnum)
 			return -ENOSPC;
 		}
 	}
-	hid_err(pidff->hid, "pid_block_load failed 60 times\n");
+	hid_err(pidff->hid, "pid_block_load failed %d times\n", Block_Load_Retries);
 	return -EIO;
 }
 
@@ -891,15 +892,19 @@ static struct hid_field *pidff_find_special_field(struct hid_report *report,
 	int i;
 
 	for (i = 0; i < report->maxfield; i++) {
-		if (report->field[i]->logical == (HID_UP_PID | usage) &&
-		    report->field[i]->report_count > 0) {
-			if (!enforce_min ||
-			    report->field[i]->logical_minimum == 1)
-				return report->field[i];
-			else {
-				pr_err("logical_minimum is not 1 as it should be\n");
-				return NULL;
-			}
+		if (report->field[i]->logical == (HID_UP_PID | usage)) {
+		    hid_dbg(report->device,
+		        "report id=%u type=%u field=%d found usage 0x%02x report_count %u\n",
+		        report->id, report->type, i, usage, report->field[i]->report_count);
+		    if(report->field[i]->report_count > 0) {
+		        if (!enforce_min ||
+		                report->field[i]->logical_minimum == 1)
+		            return report->field[i];
+		        else {
+		            pr_err("logical_minimum is not 1 as it should be\n");
+		            return NULL;
+		        }
+		    }
 		}
 	}
 	return NULL;
@@ -938,21 +943,30 @@ static int pidff_find_special_fields(struct pidff_device *pidff)
 {
 	hid_dbg(pidff->hid, "finding special fields\n");
 
+	hid_dbg(pidff->hid, "Searching Create New Effect Report");
 	pidff->create_new_effect_type =
 		pidff_find_special_field(pidff->reports[PID_CREATE_NEW_EFFECT],
 					 0x25, 1);
+
+	hid_dbg(pidff->hid, "Searching Set Effect Report");
 	pidff->set_effect_type =
 		pidff_find_special_field(pidff->reports[PID_SET_EFFECT],
 					 0x25, 1);
 	pidff->effect_direction =
 		pidff_find_special_field(pidff->reports[PID_SET_EFFECT],
 					 0x57, 0);
+
+	hid_dbg(pidff->hid, "Searching PID Device Control Report");
 	pidff->device_control =
 		pidff_find_special_field(pidff->reports[PID_DEVICE_CONTROL],
 					 0x96, 1);
+
+	hid_dbg(pidff->hid, "Searching PID Block Load Report");
 	pidff->block_load_status =
 		pidff_find_special_field(pidff->reports[PID_BLOCK_LOAD],
 					 0x8b, 1);
+
+	hid_dbg(pidff->hid, "Searching Effect Operation Report");
 	pidff->effect_operation_status =
 		pidff_find_special_field(pidff->reports[PID_EFFECT_OPERATION],
 					 0x78, 1);
@@ -1291,7 +1305,9 @@ int hid_pidff_init(struct hid_device *hid)
 
 	hid_device_io_start(hid);
 
+	hid_dbg(hid, "Finding Output Reports\n");
 	pidff_find_reports(hid, HID_OUTPUT_REPORT, pidff);
+	hid_dbg(hid, "Finding Feature Reports\n");
 	pidff_find_reports(hid, HID_FEATURE_REPORT, pidff);
 
 	if (!pidff_reports_ok(pidff)) {
@@ -1312,9 +1328,11 @@ int hid_pidff_init(struct hid_device *hid)
 				     HID_REQ_SET_REPORT);
 	}
 
+#if 0
 	error = pidff_check_autocenter(pidff, dev);
 	if (error)
 		goto fail;
+#endif
 
 	max_effects =
 	    pidff->block_load[PID_EFFECT_BLOCK_INDEX].field->logical_maximum -
