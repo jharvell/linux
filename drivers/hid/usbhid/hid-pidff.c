@@ -570,7 +570,7 @@ static int pidff_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 	int error;
 
 	pidff->block_load[PID_EFFECT_BLOCK_INDEX].value[0] = 0;
-	if (old && effect) {
+	if (old) {
 		pidff->block_load[PID_EFFECT_BLOCK_INDEX].value[0] =
 			pidff->pid_id[effect->id];
 	}
@@ -782,11 +782,6 @@ static int pidff_find_fields(struct pidff_usage *usage, const u8 *table,
 				continue;
 			}
 			for (j = 0; j < report->field[i]->maxusage; j++) {
-			    if (table[k] == 0x56 && report->field[i]->usage[j].hid == 0x10056)
-			    {
-			        pr_warn("Iris Dynamics yoke hack changing Usage Page of 0x56 from 0x1 to 0xf: %d->%d", i, j);
-			        report->field[i]->usage[j].hid = 0xf0056;
-			    }
 				if (report->field[i]->usage[j].hid ==
 				    (HID_UP_PID | table[k])) {
 					pr_debug("found %d at %d->%d\n",
@@ -1099,7 +1094,6 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 	hid_dbg(pidff->hid,"Searching for SetEffect fields");
 	if (PIDFF_FIND_FIELDS(set_effect, PID_SET_EFFECT, 1)) {
 		hid_err(pidff->hid, "unknown set_effect report layout\n");
-//		return -ENODEV;
 		error = -ENODEV;
 	}
 
@@ -1107,21 +1101,18 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 	PIDFF_FIND_FIELDS(block_load, PID_BLOCK_LOAD, 0);
 	if (!pidff->block_load[PID_EFFECT_BLOCK_INDEX].value) {
 		hid_err(pidff->hid, "unknown pid_block_load report layout\n");
-//		return -ENODEV;
 		error = -ENODEV;
 	}
 
 	hid_dbg(pidff->hid,"Searching for EffectOperation fields");
 	if (PIDFF_FIND_FIELDS(effect_operation, PID_EFFECT_OPERATION, 1)) {
 		hid_err(pidff->hid, "unknown effect_operation report layout\n");
-//		return -ENODEV;
 		error = -ENODEV;
 	}
 
 	hid_dbg(pidff->hid,"Searching for BlockFree fields");
 	if (PIDFF_FIND_FIELDS(block_free, PID_BLOCK_FREE, 1)) {
 		hid_err(pidff->hid, "unknown pid_block_free report layout\n");
-//		return -ENODEV;
 		error = -ENODEV;
 	}
 
@@ -1130,10 +1121,7 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 		envelope_ok = 1;
 
 	if (pidff_find_special_fields(pidff) || pidff_find_effects(pidff, dev))
-	{
-//		return -ENODEV;
-	    error = -ENODEV;
-	}
+		error = -ENODEV;
 
 	if (!envelope_ok) {
 		if (test_and_clear_bit(FF_CONSTANT, dev->ffbit))
@@ -1148,43 +1136,42 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 				 "has periodic effect but no envelope\n");
 	}
 
-	if (test_bit(FF_CONSTANT, dev->ffbit))
-	{
-	    hid_dbg(pidff->hid,"Searching for SetConstant fields");
-	    if(PIDFF_FIND_FIELDS(set_constant, PID_SET_CONSTANT, 1)) {
-	        hid_warn(pidff->hid, "unknown constant effect layout\n");
-	        clear_bit(FF_CONSTANT, dev->ffbit);
-	    }
+	if (test_bit(FF_CONSTANT, dev->ffbit)) {
+		hid_dbg(pidff->hid,"Searching for SetConstant fields");
+		if(PIDFF_FIND_FIELDS(set_constant, PID_SET_CONSTANT, 1)) {
+			hid_warn(pidff->hid, "unknown constant effect layout\n");
+			clear_bit(FF_CONSTANT, dev->ffbit);
+		}
 	}
 
 	if (test_bit(FF_RAMP, dev->ffbit)) {
-	    hid_dbg(pidff->hid,"Searching for SetRamp fields");
-	    if(PIDFF_FIND_FIELDS(set_ramp, PID_SET_RAMP, 1)) {
-	        hid_warn(pidff->hid, "unknown ramp effect layout\n");
-	        clear_bit(FF_RAMP, dev->ffbit);
-	    }
+		hid_dbg(pidff->hid,"Searching for SetRamp fields");
+		if(PIDFF_FIND_FIELDS(set_ramp, PID_SET_RAMP, 1)) {
+			hid_warn(pidff->hid, "unknown ramp effect layout\n");
+			clear_bit(FF_RAMP, dev->ffbit);
+		}
 	}
 
 	if ((test_bit(FF_SPRING, dev->ffbit) ||
 	     test_bit(FF_DAMPER, dev->ffbit) ||
 	     test_bit(FF_FRICTION, dev->ffbit) ||
 	     test_bit(FF_INERTIA, dev->ffbit))) {
-	    hid_dbg(pidff->hid,"Searching for SetCondition fields");
-	    if(PIDFF_FIND_FIELDS(set_condition, PID_SET_CONDITION, 1)) {
-	        hid_warn(pidff->hid, "unknown condition effect layout\n");
-	        clear_bit(FF_SPRING, dev->ffbit);
-	        clear_bit(FF_DAMPER, dev->ffbit);
-	        clear_bit(FF_FRICTION, dev->ffbit);
-	        clear_bit(FF_INERTIA, dev->ffbit);
-	    }
+		hid_dbg(pidff->hid,"Searching for SetCondition fields");
+		if(PIDFF_FIND_FIELDS(set_condition, PID_SET_CONDITION, 1)) {
+			hid_warn(pidff->hid, "unknown condition effect layout\n");
+			clear_bit(FF_SPRING, dev->ffbit);
+			clear_bit(FF_DAMPER, dev->ffbit);
+			clear_bit(FF_FRICTION, dev->ffbit);
+			clear_bit(FF_INERTIA, dev->ffbit);
+		}
 	}
 
 	if (test_bit(FF_PERIODIC, dev->ffbit)) {
-	    hid_dbg(pidff->hid,"Searching for SetPeriodic fields");
-	    if(PIDFF_FIND_FIELDS(set_periodic, PID_SET_PERIODIC, 1)) {
-	        hid_warn(pidff->hid, "unknown periodic effect layout\n");
-	        clear_bit(FF_PERIODIC, dev->ffbit);
-	    }
+		hid_dbg(pidff->hid,"Searching for SetPeriodic fields");
+		if(PIDFF_FIND_FIELDS(set_periodic, PID_SET_PERIODIC, 1)) {
+			hid_warn(pidff->hid, "unknown periodic effect layout\n");
+			clear_bit(FF_PERIODIC, dev->ffbit);
+		}
 	}
 
 
@@ -1195,7 +1182,6 @@ static int pidff_init_fields(struct pidff_device *pidff, struct input_dev *dev)
 	if (!PIDFF_FIND_FIELDS(device_gain, PID_DEVICE_GAIN, 1))
 		set_bit(FF_GAIN, dev->ffbit);
 
-//	return 0;
 	return error;
 }
 
