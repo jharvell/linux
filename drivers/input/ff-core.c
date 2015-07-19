@@ -29,6 +29,130 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 
+
+static const char* ff_names[]=
+{
+        "Rumble"
+        ,"Periodic"
+        ,"Constant"
+        ,"Spring"
+        ,"Friction"
+        ,"Damper"
+        ,"Inertia"
+        ,"Ramp"
+        ,"Square"
+        ,"Triangle"
+        ,"Sine"
+        ,"SawUp"
+        ,"SawDown"
+        ,"Custom"
+        ,"<Unknown=0x5e>"
+        ,"<Unknown=0x5f>"
+        ,"Gain"
+        ,"Autocenter"
+};
+
+inline
+static const char* ff_name(__u16 val)
+{
+    __u16 idx = val - 0x50;
+    if(idx < sizeof(ff_names)/sizeof(ff_names[0]))
+    {
+        return ff_names[idx];
+    }
+    return "<Invalid>";
+}
+
+static void debug_print_effect(const struct input_dev *idev, const struct ff_effect *effect)
+{
+    const struct device* dev = &idev->dev;
+#define FF_EFFECT_PRINT_FORMAT "type=%s id=%d dir=%u\ntrigger{btn=%u,intvl=%u}\nreplay{len=%u,delay=%u}"
+#define FF_EFFECT_PRINT_ARGS ff_name(effect->type), effect->id, effect->direction\
+        ,effect->trigger.button, effect->trigger.interval\
+        ,effect->replay.length, effect->replay.delay
+#define FF_ENV_PRINT_FORMAT "env{aLen=%u,aLvl=%u,fadeLen=%u,fadeLvl=%u}"
+#define FF_ENV_PRINT_ARGS env->attack_length,env->attack_level\
+    ,env->fade_length,env->fade_level
+#define FF_COND_PRINT_FORMAT "cond[0]{left{sat=%u,k=%d} right{sat=%u,k=%d} dead=%u, ctr=%d}\n\
+cond[1]{left{sat=%u,k=%d} right{sat=%u,k=%d} dead=%u, ctr=%d}"
+
+#define FF_COND_PRINT_ARGS cond[0].left_saturation, cond[1].left_coeff\
+    ,cond[0].right_saturation, cond[0].right_coeff\
+    ,cond[0].deadband, cond[0].center\
+    ,cond[1].left_saturation, cond[1].left_coeff\
+    ,cond[1].right_saturation, cond[1].right_coeff\
+    ,cond[1].deadband, cond[1].center
+
+    switch(effect->type)
+    {
+    case FF_RUMBLE:
+    {
+        const struct ff_rumble_effect* re = &effect->u.rumble;
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\nrumble{strong_magnitude=%u, weak_magnitudue=%u}\n"
+                ,FF_EFFECT_PRINT_ARGS
+                ,re->strong_magnitude,re->weak_magnitude);
+        break;
+    }
+    case FF_PERIODIC:
+    {
+        const struct ff_periodic_effect* pe = &effect->u.periodic;
+        const struct ff_envelope* env = &pe->envelope;
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\nperiodic{waveform=%s,period=%u,magnitude=%u,offset=%d,phase=%u}"
+                "\n" FF_ENV_PRINT_FORMAT "\n"
+                ,FF_EFFECT_PRINT_ARGS
+                ,ff_name(pe->waveform),pe->period,pe->magnitude
+                ,pe->offset,pe->phase
+                ,FF_ENV_PRINT_ARGS);
+        break;
+    }
+    case FF_CONSTANT:
+    {
+        const struct ff_constant_effect* ce = &effect->u.constant;
+        const struct ff_envelope* env = &ce->envelope;
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\nconstant: lvl=%d\n"
+                FF_ENV_PRINT_FORMAT "\n"
+                ,FF_EFFECT_PRINT_ARGS
+                ,ce->level
+                ,FF_ENV_PRINT_ARGS);
+        break;
+    }
+    case FF_SPRING:
+    case FF_FRICTION:
+    case FF_DAMPER:
+    case FF_INERTIA:
+    {
+        const struct ff_condition_effect* cond = &effect->u.condition[0];
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\n" FF_COND_PRINT_FORMAT "\n"
+                ,FF_EFFECT_PRINT_ARGS
+                ,FF_COND_PRINT_ARGS);
+        break;
+    }
+    case FF_RAMP:
+    {
+        const struct ff_ramp_effect* re = &effect->u.ramp;
+        const struct ff_envelope* env = &re->envelope;
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\nramp{startLvl=%d,endLvl=%d}"
+                "\n" FF_ENV_PRINT_FORMAT "\n"
+                ,FF_EFFECT_PRINT_ARGS
+                ,re->start_level,re->end_level
+                ,FF_ENV_PRINT_ARGS);
+        break;
+    }
+    default:
+    {
+        dev_dbg(dev,FF_EFFECT_PRINT_FORMAT
+                "\nUnknown Effect format\n"
+                ,FF_EFFECT_PRINT_ARGS);
+        break;
+    }
+    }
+}
+
 /*
  * Check that the effect_id is a valid effect and whether the user
  * is the owner
@@ -105,12 +229,15 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 		    struct file *file)
 {
 	struct ff_device *ff = dev->ff;
-	struct ff_effect *old;
+	struct ff_effect *old = NULL;
 	int ret = 0;
 	int id;
 
-	if (!test_bit(EV_FF, dev->evbit))
-		return -ENOSYS;
+	if (!test_bit(EV_FF, dev->evbit)) {
+	    dev_dbg(&dev->dev, "Force-feedback not supported for this device.\n");
+	    return -ENOSYS;
+	}
+
 
 	if (effect->type < FF_EFFECT_MIN || effect->type > FF_EFFECT_MAX ||
 	    !test_bit(effect->type, dev->ffbit)) {
@@ -126,11 +253,22 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 		return -EINVAL;
 	}
 
+	if(effect->type == FF_RUMBLE)
+	{
+	    debug_print_effect(dev,effect);
+	}
+
 	if (!test_bit(effect->type, ff->ffbit)) {
 		ret = compat_effect(ff, effect);
-		if (ret)
-			return ret;
+		if (ret) {
+		    dev_dbg(&dev->dev
+		            ,"unable to map unsupported effect %s to compatible effect: %d\n"
+		            ,ff_name(effect->type), ret);
+		    return ret;
+		}
 	}
+
+    debug_print_effect(dev,effect);
 
 	mutex_lock(&ff->mutex);
 
@@ -173,6 +311,13 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 
  out:
 	mutex_unlock(&ff->mutex);
+	if(!ret) {
+	    dev_dbg(&dev->dev, "ff_effect_upload failed: %d\n",ret);
+	    if(old != NULL)
+	    {
+	        debug_print_effect(dev,old);
+	    }
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(input_ff_upload);
