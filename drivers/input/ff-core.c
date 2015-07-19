@@ -63,12 +63,18 @@ static const char* ff_name(__u16 val)
     return "<Invalid>";
 }
 
-static void debug_print_effect(const struct input_dev *idev,
+#define debug_print_effect(idev,effect)\
+do{\
+    do_debug_print_effect(__FILE__,__LINE__,idev,effect);\
+} while(0)
+
+static void do_debug_print_effect(const char* file, unsigned line,
+        const struct input_dev *idev,
         const struct ff_effect *effect)
 {
     const struct device* dev = &idev->dev;
-#define FF_EFFECT_PRINT_FORMAT "type=%s id=%d dir=%u\ntrigger{btn=%u,intvl=%u}\nreplay{len=%u,delay=%u}"
-#define FF_EFFECT_PRINT_ARGS ff_name(effect->type), effect->id, effect->direction\
+#define FF_EFFECT_PRINT_FORMAT "file=%s line=%u type=%s id=%d dir=%u\ntrigger{btn=%u,intvl=%u}\nreplay{len=%u,delay=%u}"
+#define FF_EFFECT_PRINT_ARGS file,line,ff_name(effect->type), effect->id, effect->direction\
         ,effect->trigger.button, effect->trigger.interval\
         ,effect->replay.length, effect->replay.delay
 #define FF_ENV_PRINT_FORMAT "env{aLen=%u,aLvl=%u,fadeLen=%u,fadeLvl=%u}"
