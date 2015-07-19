@@ -63,7 +63,8 @@ static const char* ff_name(__u16 val)
     return "<Invalid>";
 }
 
-static void debug_print_effect(const struct input_dev *idev, const struct ff_effect *effect)
+static void debug_print_effect(const struct input_dev *idev,
+        const struct ff_effect *effect)
 {
     const struct device* dev = &idev->dev;
 #define FF_EFFECT_PRINT_FORMAT "type=%s id=%d dir=%u\ntrigger{btn=%u,intvl=%u}\nreplay{len=%u,delay=%u}"
@@ -233,6 +234,8 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 	int ret = 0;
 	int id;
 
+	debug_print_effect(dev,effect);
+
 	if (!test_bit(EV_FF, dev->evbit)) {
 	    dev_dbg(&dev->dev, "Force-feedback not supported for this device.\n");
 	    return -ENOSYS;
@@ -253,13 +256,9 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 		return -EINVAL;
 	}
 
-	if(effect->type == FF_RUMBLE)
-	{
-	    debug_print_effect(dev,effect);
-	}
-
 	if (!test_bit(effect->type, ff->ffbit)) {
 		ret = compat_effect(ff, effect);
+		debug_print_effect(dev,effect);
 		if (ret) {
 		    dev_dbg(&dev->dev
 		            ,"unable to map unsupported effect %s to compatible effect: %d\n"
@@ -267,8 +266,6 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 		    return ret;
 		}
 	}
-
-    debug_print_effect(dev,effect);
 
 	mutex_lock(&ff->mutex);
 
@@ -311,12 +308,12 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
 
  out:
 	mutex_unlock(&ff->mutex);
-	if(!ret) {
-	    dev_dbg(&dev->dev, "ff_effect_upload failed: %d\n",ret);
-	    if(old != NULL)
-	    {
-	        debug_print_effect(dev,old);
-	    }
+	debug_print_effect(dev,effect);
+	if(old != NULL) {
+	    debug_print_effect(dev,old);
+	}
+	if(ret) {
+	    dev_dbg(&dev->dev,"ret=%d\n",ret);
 	}
 	return ret;
 }
