@@ -315,11 +315,11 @@ int input_ff_upload(struct input_dev *dev, struct ff_effect *effect,
  out:
 	mutex_unlock(&ff->mutex);
 	debug_print_effect(dev,effect);
-	if(old != NULL) {
-	    debug_print_effect(dev,old);
-	}
 	if(ret) {
 	    dev_dbg(&dev->dev,"ret=%d\n",ret);
+	    if(old != NULL) {
+	        debug_print_effect(dev,old);
+	    }
 	}
 	return ret;
 }
@@ -335,6 +335,7 @@ static int erase_effect(struct input_dev *dev, int effect_id,
 	struct ff_device *ff = dev->ff;
 	int error;
 
+	dev_dbg(&dev->dev,"Erasing effect %d\n",effect_id);
 	error = check_effect_access(ff, effect_id, file);
 	if (error)
 		return error;
@@ -416,6 +417,7 @@ int input_ff_event(struct input_dev *dev, unsigned int type,
 {
 	struct ff_device *ff = dev->ff;
 
+    dev_dbg(&dev->dev,"Set %s to %d\n",ff_name(code),value);
 	if (type != EV_FF)
 		return 0;
 
