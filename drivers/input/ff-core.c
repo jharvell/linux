@@ -417,7 +417,7 @@ int input_ff_event(struct input_dev *dev, unsigned int type,
 {
 	struct ff_device *ff = dev->ff;
 
-    dev_dbg(&dev->dev,"Set %s to %d\n",ff_name(code),value);
+    dev_dbg(&dev->dev,"Set %s(0x%x) to %d\n",ff_name(code),code,value);
 	if (type != EV_FF)
 		return 0;
 
